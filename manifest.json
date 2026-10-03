@@ -1,11 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "Comet Compat",
-  "version": "0.1.0",
+  "name": "AdVeil",
+  "version": "0.1.1",
   "description": "Compatibilidade com detectores comuns de bloqueadores, com controle por site. Experimental e sem telemetria.",
   "minimum_chrome_version": "111",
   "permissions": ["storage", "scripting", "activeTab"],
   "host_permissions": ["http://*/*", "https://*/*"],
   "background": {"service_worker": "background.js"},
-  "action": {"default_popup": "popup.html", "default_title": "Comet Compat"}
+  "action": {"default_popup": "popup.html", "default_title": "AdVeil"}
 }

@@ -1,8 +1,8 @@
-# Comet Compat
+# AdVeil
 
 Extensão experimental para Comet e navegadores Chromium, com adaptações para alguns detectores de bloqueadores de anúncios e controle por domínio.
 
-**Versão 0.1.0 — cobertura parcial. Não garante que o bloqueador fique invisível em todos os sites.**
+**Versão 0.1.1 — cobertura parcial. Não garante que o bloqueador fique invisível em todos os sites.**
 
 ## Recursos
 
@@ -19,7 +19,7 @@ O teste específico foi identificado na etapa intermediária vinculada ao player
 2. Abra `chrome://extensions` no Comet.
 3. Ative **Modo do desenvolvedor**.
 4. Clique em **Carregar sem compactação** e selecione a pasta que contém `manifest.json`.
-5. Recarregue a página afetada. Abra **Comet Compat** pelo menu de extensões para ajustar as opções.
+5. Recarregue a página afetada. Abra **AdVeil** pelo menu de extensões para ajustar as opções.
 
 Mantenha a pasta no mesmo lugar enquanto usar a extensão. Instalar esta versão não substitui nem configura automaticamente o bloqueador de anúncios do navegador.
 

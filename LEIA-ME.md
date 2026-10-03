@@ -1,4 +1,4 @@
-# Comet Compat 0.1.0
+# AdVeil 0.1.1
 
 Extensão experimental Manifest V3 para Comet/Chromium. Cobertura parcial, sem garantia de invisibilidade universal.
 
@@ -12,7 +12,7 @@ Extensão experimental Manifest V3 para Comet/Chromium. Cobertura parcial, sem g
 1. No Comet, abra chrome://extensions.
 2. Ative Modo do desenvolvedor e selecione Carregar sem compactação.
 3. Selecione esta pasta, que contém manifest.json.
-4. Recarregue a página afetada. No menu Extensões, abra Comet Compat para ajustar.
+4. Recarregue a página afetada. No menu Extensões, abra AdVeil para ajustar.
 
 Mantenha esta pasta no mesmo lugar enquanto usar a extensão. Para atualizar arquivos, clique Recarregar no cartão da extensão. Para remover, use Remover nesse cartão.
 
