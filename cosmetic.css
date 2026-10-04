@@ -1,0 +1,17 @@
+/* Opt-in cosmetic layer. Registered as an extension stylesheet (no <style> node in the page).
+   Only explicit third-party containers; geometry is kept to avoid layout shifts. Generic class
+   names such as .ads or .ad-banner are deliberately absent. */
+ins.adsbygoogle,
+iframe[id^="google_ads_iframe_"],
+iframe[id^="aswift_"],
+div[id^="google_ads_iframe_"],
+div[id^="div-gpt-ad"],
+div[data-ad-slot][data-ad-client],
+iframe[src*="doubleclick.net"],
+iframe[src*="googlesyndication.com"],
+iframe[src*="adnxs.com"],
+div[id^="taboola-"],
+div.OUTBRAIN[data-widget-id] {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}

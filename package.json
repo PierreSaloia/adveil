@@ -1,0 +1,16 @@
+{
+  "name": "adveil",
+  "version": "0.3.1",
+  "private": true,
+  "type": "module",
+  "license": "GPL-3.0-or-later",
+  "scripts": {
+    "test": "node --test tests/settings.test.mjs",
+    "test:browser": "node tests/browser.mjs",
+    "test:live": "node tests/live-steamverde.mjs",
+    "rules:update": "node scripts/update-rules.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}

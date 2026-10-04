@@ -1,6 +1,11 @@
-<!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>AdVeil</title><link rel="stylesheet" href="popup.css"></head>
-<body><header><span class="mark">A</span><div><h1>AdVeil</h1><small>Menos detecção. Mais navegação.</small></div></header>
-<main><p id="host">Carregando…</p><label><span>Ativar extensão</span><input id="enabled" type="checkbox" disabled></label><label><span>Ativar neste domínio</span><input id="site" type="checkbox" disabled></label>
-<p class="hint">Detectores comuns + correção do player do Animes Digital em MixuMenu e InvestCentro.</p><button id="save" disabled>Salvar e recarregar</button><p id="status" role="status" aria-live="polite"></p>
-<details><summary>Limites e privacidade</summary><p>A cobertura é parcial. Não garante invisibilidade em todos os sites. Se uma página apresentar problemas, desative neste domínio e recarregue.</p><p>A extensão atua nas páginas e não envia dados. Guarda apenas as preferências e os domínios desativados, neste computador.</p><p>O controle por domínio vale para os documentos desse domínio. Players em outros domínios têm configuração própria.</p></details></main><script src="popup.js"></script></body></html>
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AdVeil</title><link rel="stylesheet" href="ui.css"></head><body class="popup">
+<header class="row"><div class="brand"><img src="assets/icon-128.png" alt=""><div><h1>AdVeil</h1><small>Menos anúncios. Mais controle.</small></div></div><span class="pill">0.3</span></header>
+<main><div class="hero"><h2 id="host">Carregando…</h2><p id="siteStatus">Consultando proteção</p></div>
+<label class="field"><span>AdVeil ligado</span><input class="toggle" id="enabled" type="checkbox" disabled></label>
+<label class="field"><span>Proteger este site<small>Inclui subdomínios</small></span><input class="toggle" id="site" type="checkbox" disabled></label>
+<label class="field"><span>Compatibilidade neste site<small>Correções contra detectores conhecidos</small></span><input class="toggle" id="compatSite" type="checkbox" disabled></label>
+<label class="field"><span>Camuflagem neste site<small>Testes de detecção respondidos localmente</small></span><input class="toggle" id="stealthSite" type="checkbox" disabled></label>
+<p id="summary" class="muted"></p>
+<p id="status" class="status" role="status" aria-live="polite"></p>
+<button id="options" class="secondary wide">Todas as configurações</button></main>
+<footer>Ações no ícone são apenas do AdVeil. Outros bloqueadores continuam independentes.</footer><script type="module" src="popup.js"></script></body></html>

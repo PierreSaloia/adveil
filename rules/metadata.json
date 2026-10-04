@@ -1,0 +1,33 @@
+{
+  "revision": "8ad869604b361f4d139b7a6793f9072e221584d1",
+  "packagedOn": "2026-10-03",
+  "lists": [
+    {
+      "id": "ads",
+      "upstream": "easylist",
+      "url": "https://raw.githubusercontent.com/uBlockOrigin/uBOL-home/8ad869604b361f4d139b7a6793f9072e221584d1/chromium/rulesets/main/easylist.json",
+      "count": 3702,
+      "blocked": 3183,
+      "omitted": 8,
+      "sha256": "028ca2c5d05fb4efc2c71b8cb8a86c96d8445017dcce22a0d3650d2471f866f0"
+    },
+    {
+      "id": "privacy",
+      "upstream": "easyprivacy",
+      "url": "https://raw.githubusercontent.com/uBlockOrigin/uBOL-home/8ad869604b361f4d139b7a6793f9072e221584d1/chromium/rulesets/main/easyprivacy.json",
+      "count": 9006,
+      "blocked": 8182,
+      "omitted": 15,
+      "sha256": "eccbe89e27851e0dec52f414ef395f5a96fef2c87696872d9bbcb50f08729450"
+    },
+    {
+      "id": "regional",
+      "upstream": "spa-1",
+      "url": "https://raw.githubusercontent.com/uBlockOrigin/uBOL-home/8ad869604b361f4d139b7a6793f9072e221584d1/chromium/rulesets/main/spa-1.json",
+      "count": 897,
+      "blocked": 658,
+      "omitted": 29,
+      "sha256": "8ae3f38468934986ed280b169353849c4212cbca59d71cee9d718909fb9af830"
+    }
+  ]
+}

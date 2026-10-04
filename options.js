@@ -1,0 +1,18 @@
+import {DEFAULTS,PRESETS,normalize,booleanKeys,listKeys} from './settings.js';
+const $=id=>document.getElementById(id);
+const booleans=booleanKeys,arrays=listKeys;
+let metadata;
+async function request(message){const r=await chrome.runtime.sendMessage(message);if(!r?.ok)throw Error(r?.error||'Serviço indisponível.');return r;}
+function status(text,error=false){$('status').textContent=text;$('status').classList.toggle('error',error);}
+function fill(s){booleans.forEach(k=>$(k).checked=s[k]);arrays.forEach(k=>$(k).value=s[k].join('\n'));highlight();}
+function read(){const s={schema:3};booleans.forEach(k=>s[k]=$(k).checked);arrays.forEach(k=>s[k]=$(k).value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean));return normalize(s);}
+function highlight(){for(const b of document.querySelectorAll('[data-preset]'))b.classList.toggle('selected',Object.entries(PRESETS[b.dataset.preset]).every(([k,v])=>$(k).checked===v));}
+function displayLists(active){$('listRows').replaceChildren();for(const list of metadata.lists){const tr=document.createElement('tr');for(const value of [list.upstream,list.count.toLocaleString('pt-BR'),active.includes(list.id)?'Ativa':'Desligada']){const td=document.createElement('td');td.textContent=value;tr.append(td);}$('listRows').append(tr);}}
+(async()=>{const data=await request({type:'get'});metadata=await fetch('rules/metadata.json').then(r=>r.json());fill(data.settings);displayLists(data.activeLists);$('listDate').textContent='Empacotadas em '+metadata.packagedOn.split('-').reverse().join('/')+' · Fonte uBO Lite / EasyList / AdGuard';$('diagnostic').textContent=data.lastError?'Falha na última aplicação: '+data.lastError:'Configuração carregada. As listas são um subconjunto de regras block/allow; não incluem todos os recursos dos projetos de origem.';status('Pronto. Alterações só são aplicadas ao salvar.');$('save').disabled=false;})().catch(e=>status(e.message,true));
+$('form').addEventListener('change',()=>{highlight();status('Alterações ainda não salvas.');});
+for(const b of document.querySelectorAll('[data-preset]'))b.onclick=()=>{Object.entries(PRESETS[b.dataset.preset]).forEach(([k,v])=>$(k).checked=v);highlight();status('Perfil selecionado. Salve para aplicar.');};
+$('form').onsubmit=async event=>{event.preventDefault();$('save').disabled=true;try{const r=await request({type:'save',settings:read()});fill(r.settings);const data=await request({type:'get'});displayLists(data.activeLists);status('Salvo. Recarregue as abas abertas para aplicar todas as mudanças.');}catch(e){status(e.message,true);}finally{$('save').disabled=false;}};
+$('export').onclick=()=>{try{const data=read();const url=URL.createObjectURL(new Blob([JSON.stringify({app:'AdVeil',version:3,settings:data},null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='adveil-configuracoes.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);status('Backup exportado a partir do formulário.');}catch(e){status(e.message,true);}};
+$('import').onclick=()=>$('importFile').click();
+$('importFile').onchange=async()=>{try{const file=$('importFile').files[0];if(!file)return;if(file.size>100000)throw Error('Arquivo muito grande. Limite: 100 KB.');const data=JSON.parse(await file.text());if(data.app!=='AdVeil'||![2,3].includes(data.version))throw Error('Formato de backup incompatível.');fill(normalize(data.settings));status('Backup validado e carregado no formulário. Salve para aplicar.');}catch(e){status(e.message,true);}finally{$('importFile').value='';}};
+$('reset').onclick=()=>{fill(normalize(DEFAULTS));status('Padrões carregados no formulário. Salve para confirmar.');};
