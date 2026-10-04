@@ -1,13 +1,14 @@
 {
   "name": "adveil",
-  "version": "0.3.1",
+  "version": "0.4.1",
   "private": true,
   "type": "module",
   "license": "GPL-3.0-or-later",
   "scripts": {
-    "test": "node --test tests/settings.test.mjs",
+    "test": "node --test tests/*.test.mjs",
     "test:browser": "node tests/browser.mjs",
     "test:live": "node tests/live-steamverde.mjs",
+    "test:shorteners": "node tests/shorteners-live.mjs",
     "rules:update": "node scripts/update-rules.mjs"
   },
   "devDependencies": {

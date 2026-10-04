@@ -48,6 +48,14 @@
   patchGetter(HTMLElement.prototype, 'offsetWidth', el => inlinePixels(el, 'width'));
   patchGetter(Element.prototype, 'clientHeight', el => inlinePixels(el, 'height'));
   patchGetter(Element.prototype, 'clientWidth', el => inlinePixels(el, 'width'));
+  if (typeof Element.prototype.checkVisibility === 'function') {
+    const real = Element.prototype.checkVisibility;
+    const holder = { checkVisibility(...args) {
+      const visible = Reflect.apply(real, this, args);
+      return visible || isBait(this);
+    } };
+    Object.defineProperty(Element.prototype, 'checkVisibility', {value: mask(holder.checkVisibility, 'checkVisibility'), writable: true, configurable: true});
+  }
   {
     const descriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetParent');
     if (descriptor && descriptor.get) {
@@ -96,9 +104,9 @@
     const holder = { getComputedStyle(element, ...rest) {
       const style = Reflect.apply(real, this, [element, ...rest]);
       try {
-        const hidden = style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0';
+        const hidden = style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0' || style.contentVisibility === 'hidden';
         if (!hidden || !isBait(element)) return style;
-        const override = { display: 'block', visibility: 'visible', opacity: '1' };
+        const override = { display: 'block', visibility: 'visible', opacity: '1', contentVisibility: 'visible', 'content-visibility': 'visible' };
         return new Proxy(style, {
           get(target, key) {
             if (typeof key === 'string' && key in override && (target[key] === 'none' || target[key] === 'hidden' || target[key] === '0')) return override[key];
@@ -146,6 +154,25 @@
       Object.defineProperty(HTMLImageElement.prototype, 'src', { ...descriptor, get: own.get, set: own.set });
     }
   }
+  {
+    // The same probe can be set through setAttribute(), not just image.src.
+    const realSet = Element.prototype.setAttribute, realGet = Element.prototype.getAttribute;
+    const holder = {
+      setAttribute(name, value) {
+        if (this instanceof HTMLImageElement && String(name).toLowerCase() === 'src') {
+          if (isImageProbe(value)) { originalSrc.set(this, new URL(String(value), location.href).href); value = ICON; }
+          else originalSrc.delete(this);
+        }
+        return Reflect.apply(realSet, this, [name, value]);
+      },
+      getAttribute(name) {
+        const value = Reflect.apply(realGet, this, [name]);
+        return this instanceof HTMLImageElement && String(name).toLowerCase() === 'src' && value === ICON && originalSrc.has(this) ? originalSrc.get(this) : value;
+      }
+    };
+    Object.defineProperty(Element.prototype, 'setAttribute', {value: mask(holder.setAttribute, 'setAttribute'), writable: true, configurable: true});
+    Object.defineProperty(Element.prototype, 'getAttribute', {value: mask(holder.getAttribute, 'getAttribute'), writable: true, configurable: true});
+  }
 
   // ---- Probe requests ------------------------------------------------------------------
   const PROBE_HOSTS = [
@@ -168,7 +195,9 @@
         if ((method === 'GET' || method === 'HEAD') && isProbe(url)) {
           const signal = init?.signal ?? (input instanceof Request ? input.signal : null);
           if (signal?.aborted) return Promise.reject(signal.reason ?? new DOMException('Aborted', 'AbortError'));
-          return Promise.resolve(new Response(method === 'HEAD' ? null : '', { status: 200, headers: { 'Content-Type': 'application/javascript' } }));
+          const response = new Response(method === 'HEAD' ? null : '', { status: 200, headers: { 'Content-Type': 'application/javascript', 'Content-Length': '0' } });
+          Object.defineProperty(response, 'url', {value: url.href});
+          return Promise.resolve(response);
         }
       } catch { /* fall through to the native call */ }
       return Reflect.apply(real, this, [input, init]);
@@ -177,13 +206,27 @@
   }
   if (typeof XMLHttpRequest === 'function') {
     const real = XMLHttpRequest.prototype.open;
+    const probes = new WeakMap();
     const holder = { open(method, url, ...rest) {
+      probes.delete(this);
       try {
         const parsed = new URL(String(url), location.href);
-        if (/^(?:GET|HEAD)$/i.test(String(method)) && isProbe(parsed)) return Reflect.apply(real, this, [method, 'data:application/javascript,', ...rest]);
+        if (/^(?:GET|HEAD)$/i.test(String(method)) && isProbe(parsed)) {
+          const result = Reflect.apply(real, this, [method, 'data:application/javascript,', ...rest]);
+          probes.set(this, parsed.href);
+          return result;
+        }
       } catch { /* fall through to the native call */ }
       return Reflect.apply(real, this, [method, url, ...rest]);
     } };
     Object.defineProperty(XMLHttpRequest.prototype, 'open', { value: mask(holder.open, 'open'), writable: true, configurable: true });
+    const descriptor = Object.getOwnPropertyDescriptor(XMLHttpRequest.prototype, 'responseURL');
+    if (descriptor?.get && descriptor.configurable) {
+      const accessor = {get responseURL() {
+        const value = Reflect.apply(descriptor.get, this, []);
+        return value && probes.has(this) ? probes.get(this) : value;
+      }};
+      Object.defineProperty(XMLHttpRequest.prototype, 'responseURL', {...descriptor, get:mask(Object.getOwnPropertyDescriptor(accessor,'responseURL').get,'get responseURL')});
+    }
   }
 })();

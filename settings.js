@@ -1,9 +1,14 @@
-export const DEFAULTS=Object.freeze({schema:3,enabled:true,ads:true,regional:true,privacy:false,compat:true,detectors:true,stealth:true,cosmetic:false,badge:true,disabledHosts:[],compatOff:[],stealthOff:[],cosmeticOff:[],blockDomains:[],allowDomains:[]});
-export const PRESETS=Object.freeze({balanced:{ads:true,regional:true,privacy:false,compat:true,detectors:true,stealth:true,cosmetic:false},strong:{ads:true,regional:true,privacy:true,compat:true,detectors:true,stealth:true,cosmetic:true},companion:{ads:false,regional:false,privacy:false,compat:true,detectors:true,stealth:true,cosmetic:false}});
-export const booleanKeys=['enabled','ads','regional','privacy','compat','detectors','stealth','cosmetic','badge'];
-export const listKeys=['disabledHosts','compatOff','stealthOff','cosmeticOff','blockDomains','allowDomains'];
+export const DEFAULTS=Object.freeze({schema:4,enabled:true,ads:true,regional:true,privacy:false,compat:true,detectors:true,stealth:true,popups:true,shorteners:true,cosmetic:false,badge:true,disabledHosts:[],compatOff:[],stealthOff:[],popupOff:[],shortenerOff:[],cosmeticOff:[],blockDomains:[],allowDomains:[]});
+export const PRESETS=Object.freeze({balanced:{ads:true,regional:true,privacy:false,compat:true,detectors:true,stealth:true,popups:true,shorteners:true,cosmetic:false},strong:{ads:true,regional:true,privacy:true,compat:true,detectors:true,stealth:true,popups:true,shorteners:true,cosmetic:true},companion:{ads:false,regional:false,privacy:false,compat:true,detectors:true,stealth:true,popups:true,shorteners:true,cosmetic:false}});
+export const booleanKeys=['enabled','ads','regional','privacy','compat','detectors','stealth','popups','shorteners','cosmetic','badge'];
+export const listKeys=['disabledHosts','compatOff','stealthOff','popupOff','shortenerOff','cosmeticOff','blockDomains','allowDomains'];
 // Domains whose scripts/pixels are answered with local, inert stand-ins instead of an error.
 export const AD_DOMAINS=Object.freeze(['doubleclick.net','googlesyndication.com','googleadservices.com','2mdn.net','adnxs.com','taboola.com','outbrain.com','criteo.com','criteo.net','amazon-adsystem.com','pubmatic.com','rubiconproject.com','openx.net','adsrvr.org','advertising.com','moatads.com','adform.net','smartadserver.com','casalemedia.com','popads.net']);
+// Navigation protection uses known ad hosts, not a blanket ban on external links.
+export const POPUP_AD_DOMAINS=Object.freeze([...AD_DOMAINS,'popcash.net','propellerads.com','adsterra.com','exoclick.com','juicyads.com','clickadu.com',
+ // Advertising popup origins observed during the public shortener audit.
+ 'dampedvisored.com','wingsmob.com','openmindedpassengerserr.com','predictivadnetwork.com','assessschisma.com','tolaneration.com','naeviplenipo.cyou','recordedthereby.com','madurird.com']);
+export function isAdvertisingURL(value){try{const u=new URL(value);return /^https?:$/.test(u.protocol)&&matchesHost(u.hostname,POPUP_AD_DOMAINS);}catch{return false;}}
 export function domain(value){
  if(typeof value!=='string')throw Error('Domínio inválido.');
  const input=value.trim().toLowerCase().replace(/\.$/,'');
@@ -48,7 +53,10 @@ export function stealthRules(s){
   // Load an empty local document in ad frames. This preserves the frame's load lifecycle
   // without loading ad content, tracking pixels, or sending an impression to its server.
   // Main-frame navigation and all existing pause/allow exceptions remain untouched.
-  redirect(18,15,'/stubs/frame.html',{requestDomains:[...AD_DOMAINS],resourceTypes:['sub_frame']})
+  redirect(18,15,'/stubs/frame.html',{requestDomains:[...AD_DOMAINS],resourceTypes:['sub_frame']}),
+  // BCVC hides its normal countdown until this popup script fires onload. An empty local
+  // script preserves that lifecycle without requesting ads or changing its link validation.
+  redirect(19,20,'/stubs/noop.js',{regexFilter:'^https?://cdn\\.bvmcdn\\.net/opdis\\.js(?:[?#]|$)',initiatorDomains:['bc.vc','bcvcgo.xyz'],resourceTypes:['script']})
  ];
 }
 // Per-site packs for sites whose ads come from rotating third-party domains. Rules apply only to

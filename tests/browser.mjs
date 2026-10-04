@@ -3,29 +3,38 @@ import {mkdir,writeFile,readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {createServer} from 'node:http';
 import assert from 'node:assert/strict';
+import {testNavigation} from './navigation-browser.mjs';
+import {configureCometBlocker} from './comet-blocker.mjs';
 const root=resolve(import.meta.dirname,'..');
 const work=resolve(root,'work/browser-test');
 await mkdir(work,{recursive:true});
 const second=resolve(work,'second-blocker');
 await mkdir(second,{recursive:true});
-await writeFile(resolve(second,'manifest.json'),JSON.stringify({manifest_version:3,name:'Independent test blocker',version:'1.0',permissions:['declarativeNetRequest'],declarative_net_request:{rule_resources:[{id:'test',enabled:true,path:'rules.json'}]}}));
-await writeFile(resolve(second,'rules.json'),JSON.stringify([{id:1,action:{type:'block'},condition:{urlFilter:'||second.adveil.test^',resourceTypes:['xmlhttprequest']}}]));
-let hits=0,frameHits=0;
-const server=createServer((req,res)=>{if(req.url==='/resource')hits++;if(req.url==='/ad-frame')frameHits++;res.setHeader('Access-Control-Allow-Origin','*');res.setHeader('Content-Type','text/html');res.end('<!doctype html><title>AdVeil test</title><h1>Ordinary content</h1><div id="ads" style="width:120px;height:40px">Ordinary class name</div><ins class="adsbygoogle" style="display:block;width:120px;height:40px">Ad slot</ins>');});
+await writeFile(resolve(second,'manifest.json'),JSON.stringify({manifest_version:3,name:'Independent test blocker',version:'1.0',permissions:['declarativeNetRequest'],content_scripts:[{matches:['http://*/*','https://*/*'],css:['bait.css']}],declarative_net_request:{rule_resources:[{id:'test',enabled:true,path:'rules.json'}]}}));
+await writeFile(resolve(second,'bait.css'),'.adsbox{display:none!important}');
+await writeFile(resolve(second,'rules.json'),JSON.stringify([{id:1,action:{type:'block'},condition:{urlFilter:'||second.adveil.test^',resourceTypes:['xmlhttprequest']}},{id:2,action:{type:'block'},condition:{urlFilter:'||popads.net/favicon.ico',resourceTypes:['image']}}]));
+let hits=0,frameHits=0,postHits=0;
+const server=createServer((req,res)=>{if(req.url==='/resource')hits++;if(req.url==='/ad-frame')frameHits++;if(req.method==='POST'&&req.url==='/ads.js')postHits++;res.setHeader('Access-Control-Allow-Origin','*');res.setHeader('Content-Type','text/html');res.end('<!doctype html><title>AdVeil test</title><h1>Ordinary content</h1><div id="ads" style="width:120px;height:40px">Ordinary class name</div><ins class="adsbygoogle" style="display:block;width:120px;height:40px">Ad slot</ins>');});
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const port=server.address().port;
 const context=await chromium.launchPersistentContext(resolve(work,'profile-'+Date.now()),{headless:true,...(process.env.ADVEIL_BROWSER?{executablePath:process.env.ADVEIL_BROWSER}:{channel:'chromium'}),args:[`--disable-extensions-except=${root},${second}`,`--load-extension=${root},${second}`,'--host-resolver-rules=MAP *.adveil.test 127.0.0.1,MAP *.doubleclick.net 127.0.0.1','--no-proxy-server']});
 let checks=0;
 const pass=message=>{checks++;console.log('PASS '+message);};
 try{
+ // Controlled stub assertions belong to AdVeil + the independent fixture blocker.
+ // Native Comet behavior is audited separately with the real setting explicitly on.
+ if(/comet/i.test(process.env.ADVEIL_BROWSER||''))await configureCometBlocker(context,process.env.ADVEIL_COMET_BLOCKER||'off');
  const worker=context.serviceWorkers().find(w=>w.url().endsWith('/background.js'))||await context.waitForEvent('serviceworker');
  const id=new URL(worker.url()).host;
  const ui=await context.newPage();ui.on('pageerror',e=>console.error('UI error:',e.message));await ui.goto('chrome-extension://'+id+'/options.html');
  await ui.locator('#save').waitFor();
  try {await ui.waitForFunction(()=>!document.querySelector('#save').disabled,{},{timeout:15000});} catch(e) {console.error(await ui.locator('#status').textContent());throw e;}
- const request=async message=>{const result=await ui.evaluate(message=>chrome.runtime.sendMessage(message),message);assert.equal(result.ok,true,result.error);return result;};
+ const request=async message=>{const result=await ui.evaluate(message=>chrome.runtime.sendMessage(message),message);assert.equal(result.ok,true,result.error);
+  // Immediate local fixtures can outrun propagation from the extension worker to renderers.
+  if(message.type==='save')await new Promise(resolve=>setTimeout(resolve,250));return result;
+ };
  const baseline=(await request({type:'get'})).settings;
- assert.equal(baseline.schema,3);
+ assert.equal(baseline.schema,4);
  const registered=await worker.evaluate(()=>chrome.scripting.getRegisteredContentScripts());
  assert.equal(registered.find(x=>x.id==='compat').runAt,'document_start');
  assert.equal(registered.find(x=>x.id==='compat').world,'MAIN');
@@ -37,6 +46,7 @@ try{
  let s={...baseline,ads:false,regional:false,privacy:false,blockDomains:['blocked.adveil.test']};
  await request({type:'save',settings:s});
  const page=await context.newPage();
+ const cache=await context.newCDPSession(page);await cache.send('Network.enable');await cache.send('Network.setCacheDisabled',{cacheDisabled:true});
  await page.goto('http://page.adveil.test:'+port);
  const fetchResource=hostname=>page.evaluate(url=>fetch(url).then(r=>r.ok,()=>false),'http://'+hostname+':'+port+'/resource');
  hits=0;assert.equal(await fetchResource('blocked.adveil.test'),false);assert.equal(hits,0);
@@ -84,16 +94,16 @@ try{
  assert.match(seen.nativeText,/\[native code\]/);assert.match(seen.fetchText,/function fetch\(\) \{ \[native code\] \}/);assert.match(seen.gcsText,/\[native code\]/);assert.match(seen.toStringText,/\[native code\]/);
  pass('empty bait hidden by a blocker reads as visible; other hidden or filled elements stay truthful; patches look native');
  const probes=await page.evaluate(async()=>{
-  const fetchProbe=await fetch('https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js').then(r=>r.ok,()=>false);
+  const fetchProbe=await fetch('https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js').then(async r=>r.ok&&r.headers.get('content-length')===String((await r.text()).length),()=>false);
   const headProbe=await fetch('https://ad.doubleclick.net/instream/ad_status.js',{method:'HEAD'}).then(r=>r.ok,()=>false);
   const nameProbe=await fetch('/ads.js').then(r=>r.ok,()=>false);
-  const postProbe=await fetch('https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js',{method:'POST'}).then(()=>true,()=>false);
+  const postProbe=await fetch('/ads.js',{method:'POST'}).then(async r=>(await r.text()).includes('Ordinary content'),()=>false);
   const unrelated=await fetch('https://unrelated.adveil.test/x.js').then(()=>true,()=>false);
   const c=new AbortController();c.abort();const aborted=await fetch('https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js',{signal:c.signal}).then(()=>false,e=>e.name==='AbortError');
   const xhr=await new Promise(res=>{const x=new XMLHttpRequest();x.open('GET','https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js');x.onload=()=>res(x.status);x.onerror=()=>res('error');x.send();});
   return {fetchProbe,headProbe,nameProbe,postProbe,unrelated,aborted,xhr};
  });
- assert.deepEqual(probes,{fetchProbe:true,headProbe:true,nameProbe:true,postProbe:false,unrelated:false,aborted:true,xhr:200});
+ assert.deepEqual(probes,{fetchProbe:true,headProbe:true,nameProbe:true,postProbe:true,unrelated:false,aborted:true,xhr:200});assert.equal(postHits,1);
  pass('probe fetch/XHR answered locally; POST, unrelated hosts and cancellation keep native behavior');
  const load=(tag,url)=>page.evaluate(([tag,url])=>new Promise(res=>{const e=document.createElement(tag);e.onload=()=>res('load');e.onerror=()=>res('error');e.src=url;document.head.append(e);}),[tag,url]);
  assert.equal(await load('script','https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js'),'load');
@@ -230,6 +240,7 @@ try{
  assert.deepEqual(await worker.evaluate(()=>chrome.scripting.getRegisteredContentScripts()),[]);
  assert.deepEqual(await worker.evaluate(()=>chrome.declarativeNetRequest.getDynamicRules()),[]);
  pass('global pause clears all own network and script layers');
+ await testNavigation({context,worker,page,request,baseline,port,pass});
  await request({type:'save',settings:baseline});
  await ui.reload();await ui.waitForFunction(()=>!document.querySelector('#save').disabled);
  await ui.getByRole('button',{name:'Reforçado',exact:false}).click();assert.equal(await ui.locator('#privacy').isChecked(),true);

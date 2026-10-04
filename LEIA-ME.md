@@ -1,11 +1,11 @@
-# AdVeil 0.3.1
+# AdVeil 0.4.1
 
 A pasta principal é `C:\Projetos Desenvolvidos\Extensões\AdVeil`.
 
 ## Atualizar no Comet
 1. Abra `chrome://extensions`.
 2. No cartão **AdVeil**, clique em **Recarregar**.
-3. Se necessário, revise a nova permissão de bloqueio de rede.
+3. Se solicitado, revise a permissão para identificar novas abas de anúncios.
 4. Recarregue as páginas abertas.
 5. Abra **AdVeil → Todas as configurações**.
 
@@ -17,6 +17,8 @@ Se ainda estiver usando outra pasta, carregue esta pasta com **Carregar sem comp
 - **Complemento:** deixa as listas de bloqueio desligadas e mantém compatibilidade e camuflagem de JavaScript, sem redirecionamentos. Seus filtros personalizados, se houver, continuam ativos.
 
 A **camuflagem** responde localmente aos testes comuns de detecção (elementos-isca, geometria e requisições a scripts de anúncio conhecidos) e usa substitutos inertes que não exibem nem solicitam anúncios. A versão 0.3.1 acrescenta frames vazios locais e melhora os retornos da API GPT. Não gera cliques ou impressões de publicidade. Pode ser desligada por site. Se um site quebrar, pause o AdVeil nele.
+
+A versão 0.4.1 bloqueia abas automáticas, avança etapas conhecidas de encurtadores e retoma a continuação após um CAPTCHA real. Respeita as exceções por site e não segue códigos substituídos por uma página intermediária. Os fluxos pendentes foram repetidos com o bloqueador nativo do Comet ligado, sem alterar seu perfil pessoal. Os resultados e limites estão em [SHORTENER_AUDIT.md](SHORTENER_AUDIT.md); a passagem por todos os links e a invisibilidade universal continuam sem garantia.
 
 Você pode pausar por site, editar domínios, importar e exportar preferências. A versão tem 13.605 regras de rede disponíveis, contando bloqueios e exceções; 4.599 estão nas listas padrão.
 
