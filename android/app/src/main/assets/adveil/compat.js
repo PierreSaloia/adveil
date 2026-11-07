@@ -1,0 +1,583 @@
+(() => {
+  'use strict';
+  // Keep the correction narrow: do not falsify arbitrary network responses,
+  // element sizes, video events or advertising impressions.
+  const host = location.hostname;
+  const isGateway = ['mixumenu.com', 'investcentro.com'].some(domain => host === domain || host.endsWith('.' + domain));
+  if (isGateway && typeof window.fetch === 'function') {
+    const originalFetch = window.fetch;
+    window.fetch = new Proxy(originalFetch, {
+      apply(target, receiver, args) {
+        const [input, init] = args;
+        let url;
+        try { url = new URL(input instanceof Request ? input.url : String(input), location.href); }
+        catch { return Reflect.apply(target, receiver, args); }
+        const method = String(init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase();
+        if (url.protocol === 'https:' && url.hostname === 'www.popads.net' && url.pathname === '/js/adblock.js' && method === 'GET') {
+          const signal = init?.signal ?? (input instanceof Request ? input.signal : null);
+          if (signal?.aborted) return Promise.reject(signal.reason ?? new DOMException('Aborted', 'AbortError'));
+          return Promise.resolve(new Response('/* local compatibility probe */', {
+            status: 200, headers: {'Content-Type': 'application/javascript'}
+          }));
+        }
+        return Reflect.apply(target, receiver, args);
+      }
+    });
+  }
+
+  const isSushi = ['sushianimes.com.br'].some(domain => host === domain || host.endsWith('.' + domain));
+  if (isSushi) {
+    const cleanResult = Object.freeze({ detected: false, blockerType: null, path: null, browser: null });
+
+    try {
+      Object.defineProperty(window, 'AABC_DETECTION', {
+        configurable: true,
+        enumerable: true,
+        get: () => cleanResult,
+        set: () => {}
+      });
+      Object.defineProperty(window, '__tlm', {
+        configurable: true,
+        enumerable: true,
+        get: () => cleanResult,
+        set: () => {}
+      });
+    } catch {}
+
+    const origAddEventListener = window.addEventListener;
+    window.addEventListener = function (type, listener, options) {
+      if (type === 'aabc:detection' && typeof listener === 'function') {
+        try {
+          setTimeout(() => {
+            try { listener.call(window, new CustomEvent('aabc:detection', { detail: cleanResult })); } catch {}
+          }, 0);
+        } catch {}
+      }
+      return origAddEventListener.call(window, type, listener, options);
+    };
+
+    let originalEnsure = null;
+    Object.defineProperty(window, '__sushiGuardEnsureLayer', {
+      configurable: true,
+      enumerable: true,
+      get: () => function () {
+        if (typeof window.__sushiGuardApprove === 'function') {
+          try { window.__sushiGuardApprove(); } catch {}
+        }
+        return document.getElementById('antiAdBlock');
+      },
+      set: fn => { originalEnsure = fn; }
+    });
+
+    let currentApprove = null;
+    Object.defineProperty(window, '__sushiGuardApprove', {
+      configurable: true,
+      enumerable: true,
+      get: () => currentApprove || function () {
+        document.documentElement.classList.remove('sushi-guard-locked');
+        if (document.body) document.body.classList.remove('sushi-guard-locked');
+        const layer = document.getElementById('antiAdBlock');
+        if (layer) {
+          layer.classList.add('hidden');
+          layer.style.setProperty('display', 'none', 'important');
+        }
+      },
+      set: fn => {
+        currentApprove = fn;
+        try { fn(); } catch {}
+      }
+    });
+
+    const origClassAdd = DOMTokenList.prototype.add;
+    DOMTokenList.prototype.add = function (...tokens) {
+      const allowed = tokens.filter(t => t !== 'sushi-guard-locked');
+      if (allowed.length) {
+        return origClassAdd.apply(this, allowed);
+      }
+    };
+
+    function cleanElements(root) {
+      if (!root || !root.querySelectorAll) return;
+      const layer = root.id === 'antiAdBlock' ? root : root.querySelector?.('#antiAdBlock');
+      if (layer) {
+        layer.classList.add('hidden');
+        layer.style.setProperty('display', 'none', 'important');
+      }
+      const adElements = root.querySelectorAll?.('.ads-embed, .sushipay-banner, [data-sushi-aabc-hidden]');
+      if (adElements) {
+        for (let i = 0; i < adElements.length; i++) {
+          adElements[i].style.setProperty('display', 'none', 'important');
+          adElements[i].style.setProperty('visibility', 'hidden', 'important');
+        }
+      }
+    }
+
+    if (document.documentElement) cleanElements(document.documentElement);
+    if (window.MutationObserver) {
+      const observer = new MutationObserver(mutations => {
+        for (const m of mutations) {
+          if (m.target === document.documentElement || m.target === document.body) {
+            document.documentElement.classList.remove('sushi-guard-locked');
+            if (document.body) document.body.classList.remove('sushi-guard-locked');
+          }
+          for (let i = 0; i < m.addedNodes.length; i++) {
+            const node = m.addedNodes[i];
+            if (node.nodeType === 1) cleanElements(node);
+          }
+        }
+      });
+      observer.observe(document.documentElement || document, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['class', 'style']
+      });
+    }
+
+    const origAppendChild = Node.prototype.appendChild;
+    Node.prototype.appendChild = function (child) {
+      if (child && child.nodeName === 'SCRIPT' && typeof child.src === 'string' && child.src.includes('wingsmob.com')) {
+        return child;
+      }
+      return origAppendChild.call(this, child);
+    };
+
+    window.addEventListener('DOMContentLoaded', () => {
+      if (typeof window.__sushiGuardApprove === 'function') {
+        try { window.__sushiGuardApprove(); } catch {}
+      }
+    }, { once: true });
+  }
+
+  const isOtakulogia = location.hostname === 'otakulogia.com' || location.hostname.endsWith('.otakulogia.com');
+  if (isOtakulogia) {
+    const defineValue = (target, prop, value) => {
+      try {
+        Object.defineProperty(target, prop, { value, writable: true, configurable: true });
+      } catch {}
+    };
+
+    const ANON_TOKEN = 'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJhbm9uIiwicm9sZSI6IlVTRVIiLCJleHAiOjQxMDI0NDQ3OTl9.local';
+    const ANON_USER = Object.freeze({
+      __typename: 'UserEntity',
+      id: 'anon',
+      name: 'Visitante Anônimo',
+      username: 'anonimo',
+      email: 'anon@otakulogia.local',
+      role: 'USER',
+      accountType: 'LOCAL',
+      isVip: true,
+      vipUntil: '2099-12-31T23:59:59.000Z',
+      vipPlan: 'YEARLY'
+    });
+
+    const BLOCKED_STORAGE_KEYS = new Set([
+      'otk_local_daily_watch',
+      'otk_delayed_vip_play_used',
+      'otk_soft_play_episode_count',
+      'otk_soft_play_last_episode',
+      'otk_play_link_opened_episodes',
+      'otk_guest_anime_opened',
+      'otk_guest_anime_open_count',
+      'otakulogia.attribution.v1',
+      'otk_pay_intent',
+      'otk_pay_intent_reason',
+      'otakulogia:apollo-cache:v1',
+      'otakulogia:apollo-cache-meta:v1'
+    ]);
+
+    const EPHEMERAL_ID_KEYS = new Set([
+      'otk_visitor_id',
+      'otakulogia_visitor_id'
+    ]);
+
+    const PROMPT_COOLDOWN_KEYS = new Set([
+      'otakulogia-push-prompt-shown-at',
+      'otakulogia-pwa-prompt-shown-at',
+      'otakulogia-instagram-prompt-shown-at'
+    ]);
+
+    const randomVisitorId = () => 'v_' + Date.now() + '_' + Math.random().toString(36).slice(2, 11);
+
+    const origGetItem = Storage.prototype.getItem;
+    const origSetItem = Storage.prototype.setItem;
+    const origRemoveItem = Storage.prototype.removeItem;
+
+    try {
+      for (const key of [...BLOCKED_STORAGE_KEYS, ...EPHEMERAL_ID_KEYS]) {
+        try { origRemoveItem.call(localStorage, key); } catch {}
+        try { origRemoveItem.call(sessionStorage, key); } catch {}
+      }
+    } catch {}
+
+    const hasRealSession = () => {
+      try {
+        const token = origGetItem.call(localStorage, 'otakulogia_access_token');
+        return typeof token === 'string' && token.trim().length > 0 && token !== ANON_TOKEN;
+      } catch {
+        return false;
+      }
+    };
+
+    defineValue(Storage.prototype, 'getItem', function (key) {
+      const k = String(key);
+      if (k === 'otk_local_daily_watch') {
+        return JSON.stringify({ date: new Date().toISOString().slice(0, 10), seconds: 0 });
+      }
+      if (BLOCKED_STORAGE_KEYS.has(k)) {
+        return null;
+      }
+      if (EPHEMERAL_ID_KEYS.has(k)) {
+        return randomVisitorId();
+      }
+      if (k === 'otakulogia-instagram-prompt-never' || k.startsWith('otakulogia-vip-discord-prompt-dismissed:')) {
+        return '1';
+      }
+      if (PROMPT_COOLDOWN_KEYS.has(k)) {
+        return String(Date.now());
+      }
+      if (k === 'otakulogia_access_token') {
+        const rawToken = origGetItem.call(this, key);
+        return (typeof rawToken === 'string' && rawToken.trim().length > 0) ? rawToken : ANON_TOKEN;
+      }
+      if (k === 'otakulogia:user') {
+        const raw = origGetItem.call(this, key);
+        if (!raw) return JSON.stringify(ANON_USER);
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') {
+            return JSON.stringify({ ...parsed, isVip: true, vipUntil: '2099-12-31T23:59:59.000Z' });
+          }
+        } catch {}
+        return JSON.stringify(ANON_USER);
+      }
+      return origGetItem.call(this, key);
+    });
+
+    defineValue(Storage.prototype, 'setItem', function (key, value) {
+      const k = String(key);
+      if (BLOCKED_STORAGE_KEYS.has(k) || EPHEMERAL_ID_KEYS.has(k)) {
+        return;
+      }
+      if (k === 'otakulogia_access_token' && value === ANON_TOKEN) {
+        return;
+      }
+      return origSetItem.call(this, key, value);
+    });
+
+    const noop = () => {};
+    if (!('fbq' in window)) {
+      const fbq = function () {};
+      fbq.push = fbq;
+      fbq.loaded = true;
+      fbq.version = '2.0';
+      fbq.queue = [];
+      defineValue(window, 'fbq', fbq);
+      defineValue(window, '_fbq', fbq);
+    }
+    if (!('gtag' in window)) {
+      defineValue(window, 'gtag', noop);
+    }
+
+    // Block pop-under and external ad tab openings on play/episode clicks
+    if (typeof window.open === 'function') {
+      const origOpen = window.open.bind(window);
+      defineValue(window, 'open', function (url, target, features) {
+        try {
+          const parsed = new URL(String(url || ''), location.href);
+          if (parsed.hostname === location.hostname || parsed.hostname.endsWith('.otakulogia.com') || parsed.hostname.endsWith('.google.com')) {
+            return origOpen(url, target, features);
+          }
+        } catch {}
+        return null;
+      });
+    }
+
+    // Anti-pause guard: prevent timers/paywalls from programmatically pausing active video playback
+    let lastUserGestureAt = 0;
+    const markUserGesture = (ev) => {
+      if (!ev || ev.isTrusted !== false) {
+        lastUserGestureAt = Date.now();
+      }
+    };
+    for (const evt of ['pointerdown', 'mousedown', 'touchstart', 'click', 'keydown']) {
+      try { window.addEventListener(evt, markUserGesture, true); } catch {}
+    }
+    if (typeof HTMLMediaElement !== 'undefined' && HTMLMediaElement.prototype && typeof HTMLMediaElement.prototype.pause === 'function') {
+      const origPause = HTMLMediaElement.prototype.pause;
+      defineValue(HTMLMediaElement.prototype, 'pause', function () {
+        const withinGesture = (Date.now() - lastUserGestureAt) < 800;
+        if (!withinGesture && !this.ended && this.currentTime > 0 && (!document.visibilityState || document.visibilityState === 'visible')) {
+          return;
+        }
+        return origPause.apply(this, arguments);
+      });
+    }
+
+    if (typeof navigator === 'object' && navigator && typeof navigator.sendBeacon === 'function') {
+      const origSendBeacon = navigator.sendBeacon.bind(navigator);
+      defineValue(navigator, 'sendBeacon', function (url, data) {
+        const target = String(url || '');
+        if (/google-analytics\.com|analytics\.google\.com|googletagmanager\.com|firebase|facebook\.com|connect\.facebook\.net|magsrv\.com|pemsrv\.com|exoclick\.com|otakulogia\.com\/graphql/i.test(target)) {
+          return true;
+        }
+        return origSendBeacon(url, data);
+      });
+    }
+
+    const episodeMediaCache = new Map();
+    const cacheEpisodesFromData = (data) => {
+      if (!data || typeof data !== 'object') return;
+      const detailEps = data?.animeCatalogDetail?.episodes;
+      if (Array.isArray(detailEps)) {
+        for (const ep of detailEps) {
+          const id = String(ep?.upstreamId ?? ep?.id ?? '');
+          if (id && (ep.videoUrl || ep.videoUrlFhd || ep.videoUrlSd)) {
+            episodeMediaCache.set(id, {
+              id,
+              video_title: ep.title || 'Episódio',
+              video_url: ep.videoUrl || ep.videoUrlFhd || ep.videoUrlSd || '',
+              video_url_fhd: ep.videoUrlFhd || ep.videoUrl || '',
+              video_url_sd: ep.videoUrlSd || ep.videoUrl || '',
+              video_thumbnail_s: ep.thumbnailSmall || null,
+              video_thumbnail_b: ep.thumbnailLarge || null,
+              audio_type: ep.audioType || null,
+              video_type: ep.videoType || 'mp4',
+              video_description: ep.description || null
+            });
+          }
+        }
+      }
+      const catEps = data?.VideoByCatId;
+      if (Array.isArray(catEps)) {
+        for (const ep of catEps) {
+          const id = String(ep?.id ?? ep?.video_id ?? '');
+          if (id && (ep.video_url || ep.video_url_fhd || ep.video_url_sd)) {
+            episodeMediaCache.set(id, ep);
+          }
+        }
+      }
+    };
+
+    const jsonResponse = (body) => new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    const buildLocalGraphQLResult = (payload, authed) => {
+      const q = String(payload?.query || '');
+      const op = String(payload?.operationName || '');
+      if (op === 'AppSettings' || /\bappSettings\s*\{/.test(q)) {
+        return {
+          data: {
+            appSettings: {
+              __typename: 'AppSettingsEntity',
+              forcePaywall: false,
+              forcePaywallAfterOneEpisode: false,
+              forcePaywallAfterThreeEpisodes: false,
+              adsEnabled: false,
+              playLinkOnPlayEnabled: false,
+              playLinkOnPlayUrl: null,
+              guestAnimeLinkEnabled: false,
+              guestAnimeLinkUrl: null,
+              guestAnimeLinkEveryN: 20
+            }
+          }
+        };
+      }
+      if (op === 'TrackActivity' || /\btrackActivity\s*\(/.test(q)) {
+        return { data: { trackActivity: true } };
+      }
+      if (op === 'RecordWatchTime' || /\brecordWatchTime\s*\(/.test(q)) {
+        return {
+          data: {
+            recordWatchTime: {
+              __typename: 'WatchTimeStatus',
+              secondsWatched: 0,
+              dailyLimitSeconds: 86400,
+              secondsRemaining: 86400,
+              isVip: true,
+              limitReached: false
+            }
+          }
+        };
+      }
+      if (op === 'DailyWatchTime' || /\bdailyWatchTime\s*\(/.test(q)) {
+        return {
+          data: {
+            dailyWatchTime: {
+              __typename: 'WatchTimeStatus',
+              secondsWatched: 0,
+              dailyLimitSeconds: 86400,
+              secondsRemaining: 86400,
+              isVip: true,
+              limitReached: false
+            }
+          }
+        };
+      }
+      if (op === 'WatchPlayGate' || op === 'RequiresVipToWatch' || /\b(?:requiresVipToWatch|shouldShowSoftPlayPaywall)\b/.test(q)) {
+        return {
+          data: {
+            requiresVipToWatch: false,
+            shouldShowSoftPlayPaywall: false
+          }
+        };
+      }
+      if (op === 'DailyDownloadStatus' || /\bdailyDownloadStatus\b/.test(q)) {
+        return {
+          data: {
+            dailyDownloadStatus: {
+              __typename: 'DownloadLimitStatus',
+              downloadsToday: 0,
+              dailyLimitDownloads: 999,
+              downloadsRemaining: 999,
+              isVip: true,
+              limitReached: false
+            }
+          }
+        };
+      }
+      if (op === 'SingleVideo' || /\bSingleVideo\s*\(/.test(q)) {
+        const vid = String(payload?.variables?.input?.videoId ?? '');
+        if (vid && episodeMediaCache.has(vid)) {
+          return { data: { SingleVideo: [episodeMediaCache.get(vid)] } };
+        }
+      }
+      if (!authed) {
+        if (op === 'Me' || /\bquery\s+Me\b/.test(q)) {
+          return { data: { me: ANON_USER } };
+        }
+        if (op === 'RefreshToken' || /\bmutation\s+RefreshToken\b/.test(q)) {
+          return { data: { refreshToken: { __typename: 'AuthPayload', accessToken: ANON_TOKEN } } };
+        }
+        if (op === 'WatchProgress' || /\bwatchProgress\s*\(/.test(q)) {
+          return { data: { watchProgress: null } };
+        }
+        if (op === 'AnimeWatchProgress' || /\banimeWatchProgress\s*\(/.test(q)) {
+          return { data: { animeWatchProgress: [] } };
+        }
+        if (op === 'ContinueWatching' || /\bcontinueWatching\b/.test(q)) {
+          return { data: { continueWatching: [] } };
+        }
+        if (op === 'MyList' || op === 'IsAnimeInMyList' || /\b(?:myList|isAnimeInMyList)\b/.test(q)) {
+          return { data: { myList: [], isAnimeInMyList: false } };
+        }
+        if (op === 'UpsertWatchProgress' || /\bupsertWatchProgress\s*\(/.test(q)) {
+          const input = payload?.variables?.input || {};
+          return {
+            data: {
+              upsertWatchProgress: {
+                __typename: 'WatchProgressEntity',
+                id: 'anon-' + (input.upstreamEpisodeId ?? 0),
+                upstreamEpisodeId: input.upstreamEpisodeId ?? 0,
+                progressPercent: input.progressPercent ?? 0,
+                completed: Boolean(input.completed),
+                lastWatchedAt: new Date().toISOString()
+              }
+            }
+          };
+        }
+        if (op === 'RemoveFromContinueWatching' || /\bremoveFromContinueWatching\b/.test(q)) {
+          return { data: { removeFromContinueWatching: true } };
+        }
+      }
+      return null;
+    };
+
+    if (typeof window.fetch === 'function') {
+      const origFetch = window.fetch.bind(window);
+      defineValue(window, 'fetch', async function (input, init) {
+        const url = typeof input === 'string' ? input : (input && typeof input.url === 'string' ? input.url : String(input || ''));
+        if (/google-analytics\.com|analytics\.google\.com|googletagmanager\.com|firebase\.googleapis\.com|firebaseinstallations\.googleapis\.com|facebook\.com|connect\.facebook\.net|magsrv\.com|pemsrv\.com|exoclick\.com/i.test(url)) {
+          return new Response('', { status: 204 });
+        }
+
+        if (/\/graphql(?:[?#]|$)/i.test(url)) {
+          let rawBody = init?.body;
+          if (!rawBody && input && typeof input === 'object' && typeof input.clone === 'function') {
+            try { rawBody = await input.clone().text(); } catch {}
+          }
+          if (typeof rawBody === 'string' && rawBody.trim().startsWith('{')) {
+            try {
+              const payload = JSON.parse(rawBody);
+              const authed = hasRealSession();
+              const localResult = buildLocalGraphQLResult(payload, authed);
+              if (localResult) {
+                return jsonResponse(localResult);
+              }
+              let modified = false;
+              if (payload?.variables?.input && typeof payload.variables.input === 'object' && 'visitorId' in payload.variables.input) {
+                payload.variables = {
+                  ...payload.variables,
+                  input: { ...payload.variables.input, visitorId: randomVisitorId() }
+                };
+                modified = true;
+              }
+              const nextHeaders = { ...(init?.headers || {}) };
+              if (!authed) {
+                for (const hk of Object.keys(nextHeaders)) {
+                  if (hk.toLowerCase() === 'authorization') {
+                    delete nextHeaders[hk];
+                  }
+                }
+              }
+              const nextInit = {
+                ...(init || {}),
+                headers: nextHeaders,
+                ...(modified ? { body: JSON.stringify(payload) } : {})
+              };
+              const response = await origFetch(typeof input !== 'string' ? url : input, nextInit);
+              const clone = response.clone();
+              try {
+                const body = await clone.json();
+                if (body?.data) {
+                  cacheEpisodesFromData(body.data);
+                }
+                let patched = false;
+                if (body?.errors && (payload?.operationName === 'SingleVideo' || /\bSingleVideo\s*\(/.test(String(payload?.query || '')))) {
+                  const vid = String(payload?.variables?.input?.videoId ?? '');
+                  if (vid && episodeMediaCache.has(vid)) {
+                    return jsonResponse({ data: { SingleVideo: [episodeMediaCache.get(vid)] } });
+                  }
+                }
+                if (body?.data && 'me' in body.data) {
+                  body.data.me = body.data.me
+                    ? { ...body.data.me, isVip: true, vipUntil: '2099-12-31T23:59:59.000Z' }
+                    : ANON_USER;
+                  patched = true;
+                }
+                if (patched) {
+                  return jsonResponse(body);
+                }
+              } catch {}
+              return response;
+            } catch {}
+          }
+        }
+
+        return origFetch(input, init);
+      });
+    }
+
+    const hideOtakulogiaAds = () => {
+      try {
+        if (document.documentElement) {
+          document.documentElement.dataset.exoclickDisplayAds = '0';
+        }
+        for (const id of ['exoclick-page-banners', 'exoclick-overlays']) {
+          const el = document.getElementById(id);
+          if (el) {
+            el.style.setProperty('display', 'none', 'important');
+            el.style.setProperty('visibility', 'hidden', 'important');
+            el.style.setProperty('pointer-events', 'none', 'important');
+          }
+        }
+      } catch {}
+    };
+
+    hideOtakulogiaAds();
+    window.addEventListener('DOMContentLoaded', hideOtakulogiaAds, { once: true });
+  }
+
+})();

@@ -5,7 +5,7 @@ export const listKeys=['disabledHosts','compatOff','stealthOff','popupOff','shor
 // Domains whose scripts/pixels are answered with local, inert stand-ins instead of an error.
 export const AD_DOMAINS=Object.freeze(['doubleclick.net','googlesyndication.com','googleadservices.com','2mdn.net','adnxs.com','taboola.com','outbrain.com','criteo.com','criteo.net','amazon-adsystem.com','pubmatic.com','rubiconproject.com','openx.net','adsrvr.org','advertising.com','moatads.com','adform.net','smartadserver.com','casalemedia.com','popads.net']);
 // Navigation protection uses known ad hosts, not a blanket ban on external links.
-export const POPUP_AD_DOMAINS=Object.freeze([...AD_DOMAINS,'popcash.net','propellerads.com','adsterra.com','exoclick.com','juicyads.com','clickadu.com',
+export const POPUP_AD_DOMAINS=Object.freeze([...AD_DOMAINS,'popcash.net','propellerads.com','adsterra.com','exoclick.com','magsrv.com','pemsrv.com','juicyads.com','clickadu.com',
  // Advertising popup origins observed during the public shortener audit.
  'dampedvisored.com','wingsmob.com','openmindedpassengerserr.com','predictivadnetwork.com','assessschisma.com','tolaneration.com','naeviplenipo.cyou','recordedthereby.com','madurird.com']);
 export function isAdvertisingURL(value){try{const u=new URL(value);return /^https?:$/.test(u.protocol)&&matchesHost(u.hostname,POPUP_AD_DOMAINS);}catch{return false;}}
@@ -87,5 +87,26 @@ export function networkRules(s){
  }
  if(s.allowDomains.length)rules.push({id:3,priority:900000,action:{type:'allow'},condition:{requestDomains:s.allowDomains}});
  if(s.blockDomains.length)rules.push({id:4,priority:800000,action:{type:'block'},condition:{requestDomains:s.blockDomains,excludedResourceTypes:['main_frame']}});
- return rules.concat(stealthRules(s),sitePackRules(s));
+ return rules.concat(stealthRules(s),sitePackRules(s),sushiRules(s),otakulogiaRules(s));
+}
+export function sushiRules(s){
+ if(!s.enabled||!s.ads)return [];
+ const host='sushianimes.com.br';
+ if(s.disabledHosts.some(d=>host===d||host.endsWith('.'+d)))return [];
+ return [
+  {id:200,priority:18,action:{type:'block'},condition:{initiatorDomains:[host],domainType:'thirdParty',excludedRequestDomains:['fontawesome.com','googleapis.com','gstatic.com','cloudflareinsights.com','cloudflare.com','googletagmanager.com','google-analytics.com','google.com','jsdelivr.net','cdnjs.cloudflare.com','jquery.com','clarity.ms'],excludedResourceTypes:['main_frame']}},
+  {id:201,priority:20,action:{type:'redirect',redirect:{extensionPath:'/stubs/noop.js'}},condition:{initiatorDomains:[host],urlFilter:'||wingsmob.com/*',resourceTypes:['script']}},
+  {id:202,priority:20,action:{type:'redirect',redirect:{extensionPath:'/stubs/noop.js'}},condition:{initiatorDomains:[host],urlFilter:'||sushipay.com.br/banners/*',resourceTypes:['script','image','sub_frame']}},
+  {id:203,priority:20,action:{type:'redirect',redirect:{extensionPath:'/stubs/antiadblockcore.js'}},condition:{initiatorDomains:[host],urlFilter:'||antiadblockcore.com/*',resourceTypes:['script']}}
+ ];
+}
+export function otakulogiaRules(s){
+ if(!s.enabled||!s.ads)return [];
+ const host='otakulogia.com';
+ if(s.disabledHosts.some(d=>host===d||host.endsWith('.'+d)))return [];
+ return [
+  {id:210,priority:18,action:{type:'block'},condition:{initiatorDomains:[host],domainType:'thirdParty',excludedRequestDomains:['classotaku.app','gigaclass.top','tmdb.org','gstatic.com','accounts.google.com','apis.google.com'],excludedResourceTypes:['main_frame','media']}},
+  {id:211,priority:20,action:{type:'redirect',redirect:{extensionPath:'/stubs/noop.js'}},condition:{initiatorDomains:[host],urlFilter:'||magsrv.com/*',resourceTypes:['script']}},
+  {id:212,priority:20,action:{type:'redirect',redirect:{extensionPath:'/stubs/noop.js'}},condition:{initiatorDomains:[host],urlFilter:'||pemsrv.com/*',resourceTypes:['script']}}
+ ];
 }

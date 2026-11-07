@@ -1,6 +1,9 @@
 node_modules/
 dist/
 work/
+android/.gradle/
+android/.kotlin/
+android/**/build/
 test-profile/
 *.zip
 *.log

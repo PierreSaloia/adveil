@@ -1,5 +1,11 @@
 # Alterações
 
+## 0.4.2 — 06/11/2026
+- Bloqueio de contadores de tempo e sessão, anonimização GraphQL e reprodução contínua sem pausas forçadas ou pop-ups em `otakulogia.com` (`compat.js`, `settings.js`, `cosmetic.css`).
+- Regras e compatibilidade dedicadas para `sushianimes.com.br` (`sushiRules`, `stubs/antiadblockcore.js`).
+- Projeto Android sincronizado com os scripts e regras atualizados.
+- Validação: 20 testes unitários aprovados (`tests/otakulogia.test.mjs`, `tests/sushianimes.test.mjs`, `tests/settings.test.mjs`, `tests/shorteners.test.mjs`).
+
 ## 0.4.1 — 04/10/2026
 - Proteção contra abas automáticas e pop-unders, mantendo links clicados, formulários e janelas de login. Fechamento de novas abas em domínios publicitários conhecidos.
 - Atalhos de destinos explícitos, URLs publicadas por AdFoc.us/SafelinkU e respostas finais assinadas do próprio servidor, com validação de esquema e ambiguidade.

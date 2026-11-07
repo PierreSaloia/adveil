@@ -11,7 +11,15 @@ iframe[src*="doubleclick.net"],
 iframe[src*="googlesyndication.com"],
 iframe[src*="adnxs.com"],
 div[id^="taboola-"],
-div.OUTBRAIN[data-widget-id] {
+div.OUTBRAIN[data-widget-id],
+div.ads-embed,
+div.sushipay-banner,
+#antiAdBlock.sushi-guard-fallback,
+#exoclick-page-banners,
+#exoclick-overlays,
+ins.eas6a97888e2,
+ins.eas6a97888e10,
+ins.eas6a97888e20 {
   visibility: hidden !important;
   pointer-events: none !important;
 }
