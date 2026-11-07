@@ -183,7 +183,10 @@
       'otk_pay_intent',
       'otk_pay_intent_reason',
       'otakulogia:apollo-cache:v1',
-      'otakulogia:apollo-cache-meta:v1'
+      'otakulogia:apollo-cache-meta:v1',
+      'otakulogia_access_token',
+      'otakulogia:user',
+      'otakulogia:refresh_token_at'
     ]);
 
     const EPHEMERAL_ID_KEYS = new Set([
@@ -198,6 +201,7 @@
     ]);
 
     const randomVisitorId = () => 'v_' + Date.now() + '_' + Math.random().toString(36).slice(2, 11);
+    const sessionVisitorId = randomVisitorId();
 
     const origGetItem = Storage.prototype.getItem;
     const origSetItem = Storage.prototype.setItem;
@@ -210,25 +214,22 @@
       }
     } catch {}
 
-    const hasRealSession = () => {
-      try {
-        const token = origGetItem.call(localStorage, 'otakulogia_access_token');
-        return typeof token === 'string' && token.trim().length > 0 && token !== ANON_TOKEN;
-      } catch {
-        return false;
-      }
-    };
-
     defineValue(Storage.prototype, 'getItem', function (key) {
       const k = String(key);
       if (k === 'otk_local_daily_watch') {
         return JSON.stringify({ date: new Date().toISOString().slice(0, 10), seconds: 0 });
       }
+      if ( k === 'otakulogia_access_token') {
+        return ANON_TOKEN;
+      }
+      if (k === 'otakulogia:user') {
+        return JSON.stringify(ANON_USER);
+      }
       if (BLOCKED_STORAGE_KEYS.has(k)) {
         return null;
       }
       if (EPHEMERAL_ID_KEYS.has(k)) {
-        return randomVisitorId();
+        return sessionVisitorId;
       }
       if (k === 'otakulogia-instagram-prompt-never' || k.startsWith('otakulogia-vip-discord-prompt-dismissed:')) {
         return '1';
@@ -236,30 +237,12 @@
       if (PROMPT_COOLDOWN_KEYS.has(k)) {
         return String(Date.now());
       }
-      if (k === 'otakulogia_access_token') {
-        const rawToken = origGetItem.call(this, key);
-        return (typeof rawToken === 'string' && rawToken.trim().length > 0) ? rawToken : ANON_TOKEN;
-      }
-      if (k === 'otakulogia:user') {
-        const raw = origGetItem.call(this, key);
-        if (!raw) return JSON.stringify(ANON_USER);
-        try {
-          const parsed = JSON.parse(raw);
-          if (parsed && typeof parsed === 'object') {
-            return JSON.stringify({ ...parsed, isVip: true, vipUntil: '2099-12-31T23:59:59.000Z' });
-          }
-        } catch {}
-        return JSON.stringify(ANON_USER);
-      }
       return origGetItem.call(this, key);
     });
 
     defineValue(Storage.prototype, 'setItem', function (key, value) {
       const k = String(key);
       if (BLOCKED_STORAGE_KEYS.has(k) || EPHEMERAL_ID_KEYS.has(k)) {
-        return;
-      }
-      if (k === 'otakulogia_access_token' && value === ANON_TOKEN) {
         return;
       }
       return origSetItem.call(this, key, value);
@@ -364,27 +347,9 @@
       headers: { 'Content-Type': 'application/json' }
     });
 
-    const buildLocalGraphQLResult = (payload, authed) => {
+    const buildLocalGraphQLResult = (payload) => {
       const q = String(payload?.query || '');
       const op = String(payload?.operationName || '');
-      if (op === 'AppSettings' || /\bappSettings\s*\{/.test(q)) {
-        return {
-          data: {
-            appSettings: {
-              __typename: 'AppSettingsEntity',
-              forcePaywall: false,
-              forcePaywallAfterOneEpisode: false,
-              forcePaywallAfterThreeEpisodes: false,
-              adsEnabled: false,
-              playLinkOnPlayEnabled: false,
-              playLinkOnPlayUrl: null,
-              guestAnimeLinkEnabled: false,
-              guestAnimeLinkUrl: null,
-              guestAnimeLinkEveryN: 20
-            }
-          }
-        };
-      }
       if (op === 'TrackActivity' || /\btrackActivity\s*\(/.test(q)) {
         return { data: { trackActivity: true } };
       }
@@ -438,49 +403,41 @@
           }
         };
       }
-      if (op === 'SingleVideo' || /\bSingleVideo\s*\(/.test(q)) {
-        const vid = String(payload?.variables?.input?.videoId ?? '');
-        if (vid && episodeMediaCache.has(vid)) {
-          return { data: { SingleVideo: [episodeMediaCache.get(vid)] } };
-        }
+      if (op === 'Me' || /\bquery\s+Me\b/.test(q)) {
+        return { data: { me: ANON_USER } };
       }
-      if (!authed) {
-        if (op === 'Me' || /\bquery\s+Me\b/.test(q)) {
-          return { data: { me: ANON_USER } };
-        }
-        if (op === 'RefreshToken' || /\bmutation\s+RefreshToken\b/.test(q)) {
-          return { data: { refreshToken: { __typename: 'AuthPayload', accessToken: ANON_TOKEN } } };
-        }
-        if (op === 'WatchProgress' || /\bwatchProgress\s*\(/.test(q)) {
-          return { data: { watchProgress: null } };
-        }
-        if (op === 'AnimeWatchProgress' || /\banimeWatchProgress\s*\(/.test(q)) {
-          return { data: { animeWatchProgress: [] } };
-        }
-        if (op === 'ContinueWatching' || /\bcontinueWatching\b/.test(q)) {
-          return { data: { continueWatching: [] } };
-        }
-        if (op === 'MyList' || op === 'IsAnimeInMyList' || /\b(?:myList|isAnimeInMyList)\b/.test(q)) {
-          return { data: { myList: [], isAnimeInMyList: false } };
-        }
-        if (op === 'UpsertWatchProgress' || /\bupsertWatchProgress\s*\(/.test(q)) {
-          const input = payload?.variables?.input || {};
-          return {
-            data: {
-              upsertWatchProgress: {
-                __typename: 'WatchProgressEntity',
-                id: 'anon-' + (input.upstreamEpisodeId ?? 0),
-                upstreamEpisodeId: input.upstreamEpisodeId ?? 0,
-                progressPercent: input.progressPercent ?? 0,
-                completed: Boolean(input.completed),
-                lastWatchedAt: new Date().toISOString()
-              }
+      if (op === 'RefreshToken' || /\bmutation\s+RefreshToken\b/.test(q)) {
+        return { data: { refreshToken: { __typename: 'AuthPayload', accessToken: ANON_TOKEN } } };
+      }
+      if (op === 'WatchProgress' || /\bwatchProgress\s*\(/.test(q)) {
+        return { data: { watchProgress: null } };
+      }
+      if (op === 'AnimeWatchProgress' || /\banimeWatchProgress\s*\(/.test(q)) {
+        return { data: { animeWatchProgress: [] } };
+      }
+      if (op === 'ContinueWatching' || /\bcontinueWatching\b/.test(q)) {
+        return { data: { continueWatching: [] } };
+      }
+      if (op === 'MyList' || op === 'IsAnimeInMyList' || /\b(?:myList|isAnimeInMyList)\b/.test(q)) {
+        return { data: { myList: [], isAnimeInMyList: false } };
+      }
+      if (op === 'UpsertWatchProgress' || /\bupsertWatchProgress\s*\(/.test(q)) {
+        const input = payload?.variables?.input || {};
+        return {
+          data: {
+            upsertWatchProgress: {
+              __typename: 'WatchProgressEntity',
+              id: 'anon-' + (input.upstreamEpisodeId ?? 0),
+              upstreamEpisodeId: input.upstreamEpisodeId ?? 0,
+              progressPercent: input.progressPercent ?? 0,
+              completed: Boolean(input.completed),
+              lastWatchedAt: new Date().toISOString()
             }
-          };
-        }
-        if (op === 'RemoveFromContinueWatching' || /\bremoveFromContinueWatching\b/.test(q)) {
-          return { data: { removeFromContinueWatching: true } };
-        }
+          }
+        };
+      }
+      if (op === 'RemoveFromContinueWatching' || /\bremoveFromContinueWatching\b/.test(q)) {
+        return { data: { removeFromContinueWatching: true } };
       }
       return null;
     };
@@ -489,8 +446,16 @@
       const origFetch = window.fetch.bind(window);
       defineValue(window, 'fetch', async function (input, init) {
         const url = typeof input === 'string' ? input : (input && typeof input.url === 'string' ? input.url : String(input || ''));
-        if (/google-analytics\.com|analytics\.google\.com|googletagmanager\.com|firebase\.googleapis\.com|firebaseinstallations\.googleapis\.com|facebook\.com|connect\.facebook\.net|magsrv\.com|pemsrv\.com|exoclick\.com/i.test(url)) {
-          return new Response('', { status: 204 });
+        if (/firebase\.googleapis\.com|firebaseinstallations\.googleapis\.com/i.test(url)) {
+          return jsonResponse({
+            fid: 'c_anon_00000000000000',
+            refreshToken: 'anon',
+            authToken: { token: 'anon', expiresIn: '604800s' },
+            measurementId: 'G-0000000000'
+          });
+        }
+        if (/google-analytics\.com|analytics\.google\.com|googletagmanager\.com|facebook\.com|connect\.facebook\.net|magsrv\.com|pemsrv\.com|exoclick\.com/i.test(url)) {
+          return new Response(null, { status: 204 });
         }
 
         if (/\/graphql(?:[?#]|$)/i.test(url)) {
@@ -501,8 +466,7 @@
           if (typeof rawBody === 'string' && rawBody.trim().startsWith('{')) {
             try {
               const payload = JSON.parse(rawBody);
-              const authed = hasRealSession();
-              const localResult = buildLocalGraphQLResult(payload, authed);
+              const localResult = buildLocalGraphQLResult(payload);
               if (localResult) {
                 return jsonResponse(localResult);
               }
@@ -515,11 +479,9 @@
                 modified = true;
               }
               const nextHeaders = { ...(init?.headers || {}) };
-              if (!authed) {
-                for (const hk of Object.keys(nextHeaders)) {
-                  if (hk.toLowerCase() === 'authorization') {
-                    delete nextHeaders[hk];
-                  }
+              for (const hk of Object.keys(nextHeaders)) {
+                if (hk.toLowerCase() === 'authorization') {
+                  delete nextHeaders[hk];
                 }
               }
               const nextInit = {
@@ -538,13 +500,26 @@
                 if (body?.errors && (payload?.operationName === 'SingleVideo' || /\bSingleVideo\s*\(/.test(String(payload?.query || '')))) {
                   const vid = String(payload?.variables?.input?.videoId ?? '');
                   if (vid && episodeMediaCache.has(vid)) {
-                    return jsonResponse({ data: { SingleVideo: [episodeMediaCache.get(vid)] } });
+                    return jsonResponse({ data: { SingleVideo: { ARRAY: [episodeMediaCache.get(vid)] } } });
                   }
                 }
+                if (body?.data?.appSettings && typeof body.data.appSettings === 'object') {
+                  body.data.appSettings = {
+                    ...body.data.appSettings,
+                    forcePaywall: false,
+                    forcePaywallAfterOneEpisode: false,
+                    forcePaywallAfterThreeEpisodes: false,
+                    forcePaywallOlderAccounts: false,
+                    forcePaywallNotTodayAccounts: false,
+                    forcePaywallAccountAgeEnabled: false,
+                    adsEnabled: false,
+                    playLinkOnPlayEnabled: false,
+                    guestAnimeLinkEnabled: false
+                  };
+                  patched = true;
+                }
                 if (body?.data && 'me' in body.data) {
-                  body.data.me = body.data.me
-                    ? { ...body.data.me, isVip: true, vipUntil: '2099-12-31T23:59:59.000Z' }
-                    : ANON_USER;
+                  body.data.me = ANON_USER;
                   patched = true;
                 }
                 if (patched) {
@@ -560,6 +535,7 @@
       });
     }
 
+    const PAYWALL_PATTERNS = /Seu teste acabou|Assine o VIP e continue sem limites|Seu plano VIP venceu|Seu tempo gratuito de hoje acabou|Ainda dá para continuar de graça/i;
     const hideOtakulogiaAds = () => {
       try {
         if (document.documentElement) {
@@ -573,11 +549,35 @@
             el.style.setProperty('pointer-events', 'none', 'important');
           }
         }
+        if (document.querySelectorAll) {
+          const dialogs = document.querySelectorAll('[role="dialog"], .fixed.inset-0');
+          for (let i = 0; i < dialogs.length; i++) {
+            const dlg = dialogs[i];
+            if (dlg && PAYWALL_PATTERNS.test(dlg.textContent || '')) {
+              const closeBtn = dlg.querySelector('button[aria-label="Fechar"], button[aria-label="Close"]');
+              if (closeBtn) {
+                try { closeBtn.click(); } catch {}
+              }
+              dlg.style.setProperty('display', 'none', 'important');
+              dlg.style.setProperty('pointer-events', 'none', 'important');
+              const vid = document.querySelector('video');
+              if (vid && vid.paused && !vid.ended && vid.currentTime > 0) {
+                try { vid.play().catch(() => {}); } catch {}
+              }
+            }
+          }
+        }
       } catch {}
     };
 
     hideOtakulogiaAds();
-    window.addEventListener('DOMContentLoaded', hideOtakulogiaAds, { once: true });
+    window.addEventListener('DOMContentLoaded', () => {
+      hideOtakulogiaAds();
+      if (typeof MutationObserver === 'function' && document.documentElement) {
+        const obs = new MutationObserver(hideOtakulogiaAds);
+        obs.observe(document.documentElement, { childList: true, subtree: true });
+      }
+    }, { once: true });
   }
 
 })();

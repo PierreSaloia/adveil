@@ -1,4 +1,5 @@
 import {DEFAULTS,PRESETS,normalize,booleanKeys,listKeys} from './settings.js';
+if(new URLSearchParams(location.search).get('reload')==='1'){chrome.runtime.reload();}
 const $=id=>document.getElementById(id);
 const booleans=booleanKeys,arrays=listKeys;
 let metadata;

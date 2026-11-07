@@ -136,11 +136,11 @@ test('compat.js blocks watch-time counters, rotates visitor IDs, and anonymizes 
   windowObj.sessionStorage.setItem('otk_soft_play_episode_count', '5');
   assert.equal(windowObj.sessionStorage.getItem('otk_soft_play_episode_count'), null);
 
-  // 2. Visitor IDs are ephemeral and rotate on every read
+  // 2. Visitor IDs are ephemeral per session (never persisted to storage)
   const id1 = windowObj.localStorage.getItem('otk_visitor_id');
   const id2 = windowObj.localStorage.getItem('otk_visitor_id');
   assert.notEqual(id1, 'v_persistent_123');
-  assert.notEqual(id1, id2);
+  assert.equal(id1, id2);
   assert.equal(localStore._map.has('otk_visitor_id'), false);
 
   // 3. Anonymous VIP session user is provided when unauthenticated

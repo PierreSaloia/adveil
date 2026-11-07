@@ -2,7 +2,7 @@ import {DEFAULTS,normalize,exclusions,networkRules,matchesHost,isAdvertisingURL}
 let queue=Promise.resolve(),lastError='';
 const locked=task=>{const job=queue.catch(()=>{}).then(task);queue=job;return job;};
 const read=async()=>normalize(await chrome.storage.local.get(DEFAULTS));
-async function apply(s){
+async function apply(s,force=false){
  const lists=s.enabled?['ads','regional','privacy'].filter(id=>s[id]):[];
  await chrome.declarativeNetRequest.updateEnabledRulesets({enableRulesetIds:lists,disableRulesetIds:['ads','regional','privacy'].filter(id=>!lists.includes(id))});
  const old=await chrome.declarativeNetRequest.getDynamicRules();
@@ -31,7 +31,7 @@ async function apply(s){
  const kept=registered.filter(r=>!removed.includes(r.id));
  const config=r=>JSON.stringify([r.js||[],r.css||[],r.matches,r.excludeMatches||[],r.world||'ISOLATED',r.runAt,!!r.allFrames,!!r.matchOriginAsFallback,r.persistAcrossSessions!==false]);
  // Saving an unrelated setting must not unregister/update every page script again.
- const update=wanted.filter(w=>kept.some(r=>r.id===w.id&&config(r)!==config(w))),add=wanted.filter(w=>!kept.some(r=>r.id===w.id));
+ const update=wanted.filter(w=>kept.some(r=>r.id===w.id&&(force||config(r)!==config(w)))),add=wanted.filter(w=>!kept.some(r=>r.id===w.id));
  if(update.length)await chrome.scripting.updateContentScripts(update);
  if(add.length)await chrome.scripting.registerContentScripts(add);
  await chrome.action.setBadgeBackgroundColor({color:'#14685f'});
@@ -39,12 +39,13 @@ async function apply(s){
  if(!s.enabled||!s.badge)await chrome.action.setBadgeText({text:''});
 }
 async function initialize(){
- const settings=await read();await apply(settings);await chrome.storage.local.set(settings);
+ const settings=await read();await apply(settings,true);await chrome.storage.local.set(settings);
  await chrome.storage.local.setAccessLevel({accessLevel:'TRUSTED_CONTEXTS'});lastError='';
 }
 const initializeSafely=()=>locked(initialize).catch(error=>{lastError=error.message;console.error(error);});
 chrome.runtime.onInstalled.addListener(initializeSafely);
 chrome.runtime.onStartup.addListener(initializeSafely);
+initializeSafely();
 // Remember only recently created navigation targets in memory. This also covers open('')
 // followed by assigning the ad URL, or an HTTP redirect into a known advertising host.
 const createdTargets=new Map();
