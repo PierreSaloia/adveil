@@ -14,7 +14,10 @@ test('otakulogiaRules blocks third-party trackers and neutralizes ExoClick scrip
   assert.deepEqual(blockRule.condition.initiatorDomains, ['otakulogia.com']);
   assert.ok(blockRule.condition.excludedRequestDomains.includes('classotaku.app'));
   assert.ok(blockRule.condition.excludedRequestDomains.includes('gigaclass.top'));
+  assert.ok(blockRule.condition.excludedRequestDomains.includes('anilist.co'));
+  assert.ok(blockRule.condition.excludedRequestDomains.includes('myanimelist.net'));
   assert.ok(blockRule.condition.excludedResourceTypes.includes('media'));
+  assert.ok(blockRule.condition.excludedResourceTypes.includes('image'));
   assert.ok(!blockRule.condition.excludedRequestDomains.includes('google-analytics.com'));
   assert.ok(!blockRule.condition.excludedRequestDomains.includes('facebook.com'));
 
