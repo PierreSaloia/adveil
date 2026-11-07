@@ -1,12 +1,13 @@
-import {matchesHost} from './settings.js';
+import {matchesHost,networkRules} from './settings.js';
 const $=id=>document.getElementById(id);
 let tab,host,settings,parentPaused,parentCompat,parentStealth,parentPopup,parentShortener;
+async function syncDynamicRules(s){try{const old=await chrome.declarativeNetRequest.getDynamicRules();await chrome.declarativeNetRequest.updateDynamicRules({removeRuleIds:old.map(r=>r.id),addRules:networkRules(s)});}catch{}}
 async function request(message){const r=await chrome.runtime.sendMessage(message);if(!r?.ok)throw Error(r?.error||'Serviço indisponível.');return r;}
 function error(e){$('status').textContent=e.message;$('status').classList.add('error');}
 (async()=>{
  [tab]=await chrome.tabs.query({active:true,currentWindow:true});
  const url=new URL(tab?.url||'about:blank');host=/^https?:$/.test(url.protocol)?url.hostname:null;
- const data=await request({type:'get'});settings=data.settings;
+ const data=await request({type:'get'});settings=data.settings;await syncDynamicRules(settings);
  $('host').textContent=host||'Abra um site para configurar';
  $('enabled').checked=settings.enabled;$('enabled').disabled=false;
  parentPaused=host&&settings.disabledHosts.some(d=>d!==host&&matchesHost(host,[d]));
@@ -35,7 +36,7 @@ async function commit(){
   for(const [key,id,inherited] of [['disabledHosts','site',parentPaused],['compatOff','compatSite',parentCompat],['stealthOff','stealthSite',parentStealth],['popupOff','popupSite',parentPopup],['shortenerOff','shortenerSite',parentShortener]]){
    if(!host||inherited)continue;const set=new Set(fresh[key]);if($(id).checked)set.delete(host);else set.add(host);fresh[key]=[...set];
   }
-  await request({type:'save',settings:fresh});settings=fresh;
+  await request({type:'save',settings:fresh});settings=fresh;await syncDynamicRules(fresh);
   $('siteStatus').textContent=!settings.enabled?'AdVeil pausado em todos os sites':!$('site').checked?'Proteção pausada neste site':'Proteção ativa neste site';
   $('status').classList.remove('error');$('status').textContent='Aplicado. A página foi recarregada; recarregue outras abas abertas.';
   if(host)await chrome.tabs.reload(tab.id);

@@ -1,7 +1,7 @@
 {
     "manifest_version":  3,
     "name":  "AdVeil",
-    "version":  "0.4.3",
+    "version":  "0.4.4",
     "description":  "Bloqueia anúncios e abas automáticas, agiliza encurtadores e camufla detectores conhecidos. Controle por site, sem telemetria.",
     "minimum_chrome_version":  "120",
     "permissions":  [

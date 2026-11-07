@@ -6,8 +6,8 @@ import { DEFAULTS, otakulogiaRules, networkRules, isAdvertisingURL } from '../se
 
 test('otakulogiaRules blocks third-party trackers and neutralizes ExoClick scripts', () => {
   const rules = otakulogiaRules(DEFAULTS);
-  assert.equal(rules.length, 3);
-  assert.deepEqual(rules.map(r => r.id), [210, 211, 212]);
+  assert.equal(rules.length, 4);
+  assert.deepEqual(rules.map(r => r.id), [210, 211, 212, 213]);
 
   const blockRule = rules.find(r => r.id === 210);
   assert.equal(blockRule.action.type, 'block');
@@ -19,8 +19,15 @@ test('otakulogiaRules blocks third-party trackers and neutralizes ExoClick scrip
   assert.ok(blockRule.condition.excludedRequestDomains.includes('myanimelist.net'));
   assert.ok(blockRule.condition.excludedResourceTypes.includes('media'));
   assert.ok(blockRule.condition.excludedResourceTypes.includes('image'));
+  assert.ok(blockRule.condition.excludedResourceTypes.includes('xmlhttprequest'));
   assert.ok(!blockRule.condition.excludedRequestDomains.includes('google-analytics.com'));
   assert.ok(!blockRule.condition.excludedRequestDomains.includes('facebook.com'));
+
+  const trackerRule = rules.find(r => r.id === 213);
+  assert.equal(trackerRule.action.type, 'block');
+  assert.ok(trackerRule.condition.requestDomains.includes('google-analytics.com'));
+  assert.ok(trackerRule.condition.requestDomains.includes('facebook.com'));
+  assert.ok(trackerRule.condition.requestDomains.includes('magsrv.com'));
 
   const magsrvRule = rules.find(r => r.id === 211);
   assert.equal(magsrvRule.action.redirect.extensionPath, '/stubs/noop.js');

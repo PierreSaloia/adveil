@@ -535,17 +535,11 @@
       });
     }
 
-    // Clear any stale Workbox image cache entries that may have cached blocked responses
-    try {
-      if (typeof caches === 'object' && caches && typeof caches.delete === 'function') {
-        caches.delete('otakulogia-images').catch(() => {});
-      }
-    } catch {}
-
     // Auto-recover outdated/broken cover URLs stored in Otakulogia's catalog DB
     const anilistCoverCache = new Map();
     const anilistTitleCache = new Map();
     const pendingAnilistQueue = new Map();
+    const pendingTitleQueue = new Map();
     let anilistBatchTimer = null;
 
     const flushAnilistBatch = () => {
@@ -589,11 +583,22 @@
                 img.src = resolved;
               } else if (typeof img.src === 'string' && img.src.includes('/cover/large/')) {
                 img.src = img.src.replace('/cover/large/', '/cover/medium/');
+              } else {
+                img.src = '/placeholder.png';
               }
             } catch {}
           }
         }
-      }).catch(() => {});
+      }).catch(() => {
+        for (const [, imgs] of entries) {
+          for (const img of imgs) {
+            try {
+              img.dataset.adveilCoverRecovered = '1';
+              img.src = '/placeholder.png';
+            } catch {}
+          }
+        }
+      });
     };
 
     const recoverCoverByTitle = (img, title) => {
@@ -601,12 +606,15 @@
       if (!cleanTitle || typeof window.fetch !== 'function') return;
       if (anilistTitleCache.has(cleanTitle)) {
         const cached = anilistTitleCache.get(cleanTitle);
-        if (cached) {
-          img.dataset.adveilCoverRecovered = '1';
-          img.src = cached;
-        }
+        img.dataset.adveilCoverRecovered = '1';
+        img.src = cached || '/placeholder.png';
         return;
       }
+      if (pendingTitleQueue.has(cleanTitle)) {
+        pendingTitleQueue.get(cleanTitle).push(img);
+        return;
+      }
+      pendingTitleQueue.set(cleanTitle, [img]);
       window.fetch('https://graphql.anilist.co', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
@@ -618,11 +626,24 @@
         const cover = res?.data?.Media?.coverImage;
         const url = cover?.extraLarge || cover?.large || cover?.medium || '';
         anilistTitleCache.set(cleanTitle, url);
-        if (url) {
-          img.dataset.adveilCoverRecovered = '1';
-          img.src = url;
+        const waiting = pendingTitleQueue.get(cleanTitle) || [];
+        pendingTitleQueue.delete(cleanTitle);
+        for (const el of waiting) {
+          try {
+            el.dataset.adveilCoverRecovered = '1';
+            el.src = url || '/placeholder.png';
+          } catch {}
         }
-      }).catch(() => {});
+      }).catch(() => {
+        const waiting = pendingTitleQueue.get(cleanTitle) || [];
+        pendingTitleQueue.delete(cleanTitle);
+        for (const el of waiting) {
+          try {
+            el.dataset.adveilCoverRecovered = '1';
+            el.src = '/placeholder.png';
+          } catch {}
+        }
+      });
     };
 
     try {
