@@ -535,6 +535,87 @@
       });
     }
 
+    // Auto-recover outdated AniList cover URLs stored in Otakulogia's catalog DB (HTTP 404 on /cover/large/...)
+    const anilistCoverCache = new Map();
+    const pendingAnilistQueue = new Map();
+    let anilistBatchTimer = null;
+
+    const flushAnilistBatch = () => {
+      anilistBatchTimer = null;
+      const entries = [...pendingAnilistQueue.entries()].slice(0, 50);
+      if (!entries.length) return;
+      const ids = [];
+      for (const [id] of entries) {
+        pendingAnilistQueue.delete(id);
+        ids.push(id);
+      }
+      if (pendingAnilistQueue.size > 0 && typeof setTimeout === 'function') {
+        anilistBatchTimer = setTimeout(flushAnilistBatch, 60);
+      }
+      if (typeof window.fetch !== 'function') return;
+      window.fetch('https://graphql.anilist.co', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({
+          query: 'query($ids:[Int]){Page(perPage:50){media(id_in:$ids,type:ANIME){id coverImage{extraLarge large medium}}}}',
+          variables: { ids }
+        })
+      }).then(r => r.json()).then(res => {
+        const list = res?.data?.Page?.media;
+        const byId = new Map();
+        if (Array.isArray(list)) {
+          for (const item of list) {
+            const url = item?.coverImage?.extraLarge || item?.coverImage?.large || item?.coverImage?.medium;
+            if (item?.id && url) {
+              byId.set(Number(item.id), url);
+              anilistCoverCache.set(Number(item.id), url);
+            }
+          }
+        }
+        for (const [id, imgs] of entries) {
+          const resolved = byId.get(id);
+          for (const img of imgs) {
+            try {
+              img.dataset.adveilCoverRecovered = '1';
+              if (resolved) {
+                img.src = resolved;
+              } else if (typeof img.src === 'string' && img.src.includes('/cover/large/')) {
+                img.src = img.src.replace('/cover/large/', '/cover/medium/');
+              }
+            } catch {}
+          }
+        }
+      }).catch(() => {});
+    };
+
+    try {
+      window.addEventListener('error', (ev) => {
+        const img = ev?.target;
+        if (!img || img.tagName !== 'IMG' || img.dataset?.adveilCoverRecovered === '1') return;
+        const src = String(img.getAttribute('src') || img.src || '');
+        const match = src.match(/anilist\.co\/file\/anilistcdn\/media\/anime\/cover\/(?:large|medium|small)\/(?:bx?|)(\d+)/i);
+        if (!match) return;
+        const id = Number.parseInt(match[1], 10);
+        if (!Number.isFinite(id) || id <= 0) return;
+        try {
+          ev.stopImmediatePropagation();
+          ev.preventDefault();
+        } catch {}
+        if (anilistCoverCache.has(id)) {
+          img.dataset.adveilCoverRecovered = '1';
+          img.src = anilistCoverCache.get(id);
+          return;
+        }
+        if (!pendingAnilistQueue.has(id)) {
+          pendingAnilistQueue.set(id, []);
+        }
+        pendingAnilistQueue.get(id).push(img);
+        if (!anilistBatchTimer && typeof setTimeout === 'function') {
+          anilistBatchTimer = setTimeout(flushAnilistBatch, 60);
+        }
+      }, true);
+    } catch {}
+
     const PAYWALL_PATTERNS = /Seu teste acabou|Assine o VIP e continue sem limites|Seu plano VIP venceu|Seu tempo gratuito de hoje acabou|Ainda dá para continuar de graça/i;
     const hideOtakulogiaAds = () => {
       try {
