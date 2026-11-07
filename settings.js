@@ -105,7 +105,7 @@ export function otakulogiaRules(s){
  const host='otakulogia.com';
  if(s.disabledHosts.some(d=>host===d||host.endsWith('.'+d)))return [];
  return [
-  {id:210,priority:18,action:{type:'block'},condition:{initiatorDomains:[host],domainType:'thirdParty',excludedRequestDomains:['classotaku.app','gigaclass.top','tmdb.org','anilist.co','myanimelist.net','kitsu.io','kitsu.app','imgur.com','wp.com','googleusercontent.com','gstatic.com','accounts.google.com','apis.google.com'],excludedResourceTypes:['main_frame','media','image']}},
+  {id:210,priority:18,action:{type:'block'},condition:{initiatorDomains:[host],domainType:'thirdParty',excludedRequestDomains:['classotaku.app','gigaclass.top','tmdb.org','thetvdb.com','anilist.co','myanimelist.net','kitsu.io','kitsu.app','fanart.tv','anidb.net','bgm.tv','shikimori.one','livechart.me','anime-planet.com','imgur.com','wp.com','googleusercontent.com','gstatic.com','accounts.google.com','apis.google.com'],excludedResourceTypes:['main_frame','media','image']}},
   {id:211,priority:20,action:{type:'redirect',redirect:{extensionPath:'/stubs/noop.js'}},condition:{initiatorDomains:[host],urlFilter:'||magsrv.com/*',resourceTypes:['script']}},
   {id:212,priority:20,action:{type:'redirect',redirect:{extensionPath:'/stubs/noop.js'}},condition:{initiatorDomains:[host],urlFilter:'||pemsrv.com/*',resourceTypes:['script']}}
  ];

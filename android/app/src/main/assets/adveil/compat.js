@@ -535,8 +535,16 @@
       });
     }
 
-    // Auto-recover outdated AniList cover URLs stored in Otakulogia's catalog DB (HTTP 404 on /cover/large/...)
+    // Clear any stale Workbox image cache entries that may have cached blocked responses
+    try {
+      if (typeof caches === 'object' && caches && typeof caches.delete === 'function') {
+        caches.delete('otakulogia-images').catch(() => {});
+      }
+    } catch {}
+
+    // Auto-recover outdated/broken cover URLs stored in Otakulogia's catalog DB
     const anilistCoverCache = new Map();
+    const anilistTitleCache = new Map();
     const pendingAnilistQueue = new Map();
     let anilistBatchTimer = null;
 
@@ -588,30 +596,70 @@
       }).catch(() => {});
     };
 
+    const recoverCoverByTitle = (img, title) => {
+      const cleanTitle = String(title || '').trim();
+      if (!cleanTitle || typeof window.fetch !== 'function') return;
+      if (anilistTitleCache.has(cleanTitle)) {
+        const cached = anilistTitleCache.get(cleanTitle);
+        if (cached) {
+          img.dataset.adveilCoverRecovered = '1';
+          img.src = cached;
+        }
+        return;
+      }
+      window.fetch('https://graphql.anilist.co', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({
+          query: 'query($s:String){Media(search:$s,type:ANIME){coverImage{extraLarge large medium}}}',
+          variables: { s: cleanTitle }
+        })
+      }).then(r => r.json()).then(res => {
+        const cover = res?.data?.Media?.coverImage;
+        const url = cover?.extraLarge || cover?.large || cover?.medium || '';
+        anilistTitleCache.set(cleanTitle, url);
+        if (url) {
+          img.dataset.adveilCoverRecovered = '1';
+          img.src = url;
+        }
+      }).catch(() => {});
+    };
+
     try {
       window.addEventListener('error', (ev) => {
         const img = ev?.target;
         if (!img || img.tagName !== 'IMG' || img.dataset?.adveilCoverRecovered === '1') return;
         const src = String(img.getAttribute('src') || img.src || '');
+        if (!src || src.includes('/placeholder.png')) return;
         const match = src.match(/anilist\.co\/file\/anilistcdn\/media\/anime\/cover\/(?:large|medium|small)\/(?:bx?|)(\d+)/i);
-        if (!match) return;
-        const id = Number.parseInt(match[1], 10);
-        if (!Number.isFinite(id) || id <= 0) return;
-        try {
-          ev.stopImmediatePropagation();
-          ev.preventDefault();
-        } catch {}
-        if (anilistCoverCache.has(id)) {
-          img.dataset.adveilCoverRecovered = '1';
-          img.src = anilistCoverCache.get(id);
+        if (match) {
+          const id = Number.parseInt(match[1], 10);
+          if (!Number.isFinite(id) || id <= 0) return;
+          try {
+            ev.stopImmediatePropagation();
+            ev.preventDefault();
+          } catch {}
+          if (anilistCoverCache.has(id)) {
+            img.dataset.adveilCoverRecovered = '1';
+            img.src = anilistCoverCache.get(id);
+            return;
+          }
+          if (!pendingAnilistQueue.has(id)) {
+            pendingAnilistQueue.set(id, []);
+          }
+          pendingAnilistQueue.get(id).push(img);
+          if (!anilistBatchTimer && typeof setTimeout === 'function') {
+            anilistBatchTimer = setTimeout(flushAnilistBatch, 60);
+          }
           return;
         }
-        if (!pendingAnilistQueue.has(id)) {
-          pendingAnilistQueue.set(id, []);
-        }
-        pendingAnilistQueue.get(id).push(img);
-        if (!anilistBatchTimer && typeof setTimeout === 'function') {
-          anilistBatchTimer = setTimeout(flushAnilistBatch, 60);
+        const alt = String(img.getAttribute('alt') || img.alt || '').trim();
+        if (alt && /thetvdb\.com|tmdb\.org|gigaclass\.top|myanimelist\.net|kitsu\.(?:io|app)/i.test(src)) {
+          try {
+            ev.stopImmediatePropagation();
+            ev.preventDefault();
+          } catch {}
+          recoverCoverByTitle(img, alt);
         }
       }, true);
     } catch {}
